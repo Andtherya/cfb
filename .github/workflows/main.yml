@@ -1,0 +1,47 @@
+name: Build cloudflared 2025.11.0 (Static)
+
+on:
+  workflow_dispatch:  # 手动触发
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]  # 支持 amd64 和 arm64 架构
+
+    steps:
+      - name: Checkout cloudflared source code v2025.11.0
+        uses: actions/checkout@v4
+        with:
+          repository: cloudflare/cloudflared
+          ref: v2025.11.0  # 指定版本
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'  # Go 官方推荐版本 >= 1.22
+
+      - name: Clean and verify go modules
+        run: |
+          go mod tidy
+          go mod download
+
+      - name: Build static cloudflared binary
+        run: |
+          mkdir -p build
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} \
+          go build -trimpath -ldflags="-s -w -buildid=" -o build/cloudflared-${{ matrix.arch }} ./cmd/cloudflared
+
+      - name: Strip binary to minimize size
+        run: |
+          strip build/cloudflared-${{ matrix.arch }} || true
+          ls -lh build/
+
+      - name: Upload compiled binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflared-${{ matrix.arch }}
+          path: build/cloudflared-${{ matrix.arch }}
